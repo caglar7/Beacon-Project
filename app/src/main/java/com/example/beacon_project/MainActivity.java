@@ -43,23 +43,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
     @Override
     public void onBeaconServiceConnect() {
-        Log.d(TAG, "onBeaconServiceConnect is called");
-
-        beaconManager.addMonitorNotifier(new MonitorNotifier() {
-            @Override
-            public void didEnterRegion(Region region) {
-
-            }
-
-            @Override
-            public void didExitRegion(Region region) {
-
-            }
-
-            @Override
-            public void didDetermineStateForRegion(int i, Region region) {
-
-            }
-        });
+        
     }
 }
