@@ -3,6 +3,7 @@ package com.example.beacon_project;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.UiThread;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.solver.ArrayLinkedVariables;
 
 import android.Manifest;
 import android.os.Build;
@@ -11,6 +12,7 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.altbeacon.beacon.Beacon;
@@ -22,13 +24,18 @@ import org.altbeacon.beacon.MonitorNotifier;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private BeaconManager beaconManager;
     private Region beaconRegion;
     private Button startButton;
     private Button stopButton;
+    private TextView beaconIDText;
+    private Boolean doMonitoring = false;
+    ArrayList<String> beaconIDStringList = new ArrayList<String>();
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -51,14 +58,19 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         beaconManager = BeaconManager.getInstanceForApplication(this);
 
         // look for altbeacons for now
+        beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(ALTBEACON_LAYOUT));
+        beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(EDDYSTONE_TLM_LAYOUT));
+        beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(EDDYSTONE_UID_LAYOUT));
+        beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(EDDYSTONE_URL_LAYOUT));
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(IBEACON_LAYOUT));
 
         // bind beaconManager to this activity
         beaconManager.bind(this);
 
-        // get the buttons and onClick them
+        // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
         stopButton = (Button) findViewById(R.id.button_Stop);
+        beaconIDText = (TextView) findViewById(R.id.textBeaconUUID);
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -88,9 +100,22 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         beaconManager.addRangeNotifier(new RangeNotifier() {
             @Override
             public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
-                for(Beacon b: beacons)
+                if(doMonitoring)
                 {
-                    Log.d("beaconTag", "beacon id: " + b.getId1().toString());
+                    for(Beacon b: beacons)
+                    {
+                        if(beaconIDStringList.indexOf(b.getId1().toString()) < 0)
+                        {
+                            String tempString = b.getId1().toString();
+                            beaconIDStringList.add(tempString);
+                            beaconIDText.setText(beaconIDText.getText() + tempString + "\n");
+                        }
+                    }
+                }
+                else
+                {
+                    beaconIDStringList.clear();
+                    beaconIDText.setText("");
                 }
             }
         });
@@ -98,6 +123,8 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
     private void startMonitoring()
     {
+        doMonitoring = true;
+
         Log.d("beaconTag", "monitoring started");
         try{
             beaconManager.startRangingBeaconsInRegion(new Region("myRegion", null, null, null));
@@ -107,10 +134,12 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
     private void stopMonitoring()
     {
+        doMonitoring = false;
+
         Log.d("beaconTag", "monitoring stopped");
         try{
             beaconManager.stopRangingBeaconsInRegion(new Region("myRegion", null, null, null));
         }
-        catch(RemoteException e) {Log.d("beaconTag", "some error on start monitoring"); }
+        catch(RemoteException e) {Log.d("beaconTag", "some error on stop monitoring"); }
     }
 }
