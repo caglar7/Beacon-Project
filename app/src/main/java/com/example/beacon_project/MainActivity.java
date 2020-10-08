@@ -1,9 +1,7 @@
 package com.example.beacon_project;
 
 import androidx.annotation.RequiresApi;
-import androidx.annotation.UiThread;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.constraintlayout.solver.ArrayLinkedVariables;
 
 import android.Manifest;
 import android.os.Build;
@@ -13,20 +11,16 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import org.altbeacon.beacon.Beacon;
 import org.altbeacon.beacon.BeaconConsumer;
 import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.BeaconParser;
-import org.altbeacon.beacon.Identifier;
-import org.altbeacon.beacon.MonitorNotifier;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private BeaconManager beaconManager;
@@ -35,7 +29,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private Button stopButton;
     private TextView beaconIDText;
     private Boolean doMonitoring = false;
-    ArrayList<String> beaconIDStringList = new ArrayList<String>();
+    ArrayList<String> currentIDList = new ArrayList<String>();
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -92,29 +86,47 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         beaconManager.unbind(this);
     }
 
-
+    // this service is called on a period looking for beacons around
     @Override
     public void onBeaconServiceConnect() {
-        Log.d("beaconTag", "we are in onBeaconService");
         beaconManager.removeAllRangeNotifiers();
         beaconManager.addRangeNotifier(new RangeNotifier() {
             @Override
             public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
                 if(doMonitoring)
                 {
+                    Log.d("beaconTag", beacons.size() + " beacons");
+
+                    // get the prev list of beacon IDs
+                    ArrayList<String> prevIDList = new ArrayList<String>();
+                    for(String s: currentIDList)
+                    {
+                        prevIDList.add(s);
+                    }
+                    currentIDList.clear();
+
+                    // get the current list of beacon IDs
                     for(Beacon b: beacons)
                     {
-                        if(beaconIDStringList.indexOf(b.getId1().toString()) < 0)
+                        String tempStringID = b.getId1().toString();
+                        currentIDList.add(tempStringID);
+                    }
+
+                    // check if there is any update on beacon ID list
+                    if(!currentIDList.equals(prevIDList))
+                    {
+                        // there is a change in beacon ID list, updating textView
+                        beaconIDText.setText("");
+                        for(String idString: currentIDList)
                         {
-                            String tempString = b.getId1().toString();
-                            beaconIDStringList.add(tempString);
-                            beaconIDText.setText(beaconIDText.getText() + tempString + "\n");
+                            beaconIDText.setText(beaconIDText.getText() + idString + "\n");
                         }
                     }
+
                 }
                 else
                 {
-                    beaconIDStringList.clear();
+                    currentIDList.clear();
                     beaconIDText.setText("");
                 }
             }
@@ -129,7 +141,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         try{
             beaconManager.startRangingBeaconsInRegion(new Region("myRegion", null, null, null));
         }
-        catch(RemoteException e) {Log.d("beaconTag", "some error on start monitoring"); }
+        catch(RemoteException e) {Log.d("beaconTag", "error on start monitoring"); }
     }
 
     private void stopMonitoring()
@@ -140,6 +152,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         try{
             beaconManager.stopRangingBeaconsInRegion(new Region("myRegion", null, null, null));
         }
-        catch(RemoteException e) {Log.d("beaconTag", "some error on stop monitoring"); }
+        catch(RemoteException e) {Log.d("beaconTag", "error on stop monitoring"); }
     }
 }
