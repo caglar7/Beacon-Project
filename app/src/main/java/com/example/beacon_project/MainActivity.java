@@ -28,8 +28,10 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private Button startButton;
     private Button stopButton;
     private TextView beaconIDText;
+    private TextView beaconDistances;
     private Boolean doMonitoring = false;
     ArrayList<String> currentIDList = new ArrayList<String>();
+    ArrayList<Double> currentDistanceList = new ArrayList<Double>();
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -65,6 +67,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         startButton = (Button) findViewById(R.id.button_Start);
         stopButton = (Button) findViewById(R.id.button_Stop);
         beaconIDText = (TextView) findViewById(R.id.textBeaconUUID);
+        beaconDistances = (TextView) findViewById(R.id.text_Distances);
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -105,11 +108,25 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                     }
                     currentIDList.clear();
 
+                    // clear prev distance measurements
+                    currentDistanceList.clear();
+                    beaconDistances.setText("");
+
                     // get the current list of beacon IDs
+                    int beaconIndex = 1;
                     for(Beacon b: beacons)
                     {
+                        // get IDs and put them on a list
                         String tempStringID = b.getId1().toString();
-                        currentIDList.add(tempStringID);
+                        currentIDList.add("Beacon " + beaconIndex + ": " + tempStringID);
+
+                        // get distances and print them out
+                        currentDistanceList.add(b.getDistance());
+                        String bDistance = String.format("%.2f", b.getDistance());
+                        String disString = "Beacon " + beaconIndex + ": " + bDistance +" meters";
+                        beaconDistances.setText(beaconDistances.getText() + disString + "\n");
+
+                        beaconIndex+=1;
                     }
 
                     // check if there is any update on beacon ID list
