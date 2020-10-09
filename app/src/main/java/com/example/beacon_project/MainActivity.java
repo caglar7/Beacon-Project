@@ -18,6 +18,8 @@ import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
+import org.altbeacon.beacon.service.ArmaRssiFilter;
+import org.altbeacon.beacon.service.RunningAverageRssiFilter;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,6 +43,11 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private static final String IBEACON_LAYOUT = "m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24";
 
 
+    // for calibration currently
+    float totalRssi = 0f;
+    float currentRssi;
+    float rssiIndex = 1;
+
     // this call here just before the onCreate method
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
@@ -62,6 +69,10 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
         // bind beaconManager to this activity
         beaconManager.bind(this);
+
+        // set average distance measurement period
+        beaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
+        RunningAverageRssiFilter.setSampleExpirationMilliseconds(3000L);
 
         // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
@@ -126,7 +137,18 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         String disString = "Beacon " + beaconIndex + ": " + bDistance +" meters";
                         beaconDistances.setText(beaconDistances.getText() + disString + "\n");
 
+                        // for calibration
+                        //currentRssi = b.getRssi();
+                        //totalRssi += currentRssi;
+                        //float averageRssi = totalRssi / rssiIndex;
+                        //beaconDistances.setText("total RSSI  : " + totalRssi + "\n");
+                        //beaconDistances.setText(beaconDistances.getText() + "index       : " + rssiIndex + "\n");
+                        //beaconDistances.setText(beaconDistances.getText() + "average RSSI: " + averageRssi + " dbm");
+                        //rssiIndex+=1;
+                        // for calibration
+
                         beaconIndex+=1;
+
                     }
 
                     // check if there is any update on beacon ID list
@@ -146,6 +168,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                     currentIDList.clear();
                     beaconIDText.setText("");
                 }
+
             }
         });
     }
@@ -153,6 +176,10 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private void startMonitoring()
     {
         doMonitoring = true;
+
+        // for calibration
+        totalRssi = 0f;
+        rssiIndex = 1f;
 
         Log.d("beaconTag", "monitoring started");
         try{
