@@ -23,6 +23,8 @@ import org.altbeacon.beacon.service.RunningAverageRssiFilter;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private BeaconManager beaconManager;
@@ -34,6 +36,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private Boolean doMonitoring = false;
     ArrayList<String> currentIDList = new ArrayList<String>();
     ArrayList<Double> currentDistanceList = new ArrayList<Double>();
+    ArrayList<Double> running5Distances = new ArrayList<Double>();
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -72,7 +75,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
         // set average distance measurement period
         beaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
-        RunningAverageRssiFilter.setSampleExpirationMilliseconds(3000L);
+        RunningAverageRssiFilter.setSampleExpirationMilliseconds(5000L);
 
         // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
@@ -131,11 +134,34 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         String tempStringID = b.getId1().toString();
                         currentIDList.add("Beacon " + beaconIndex + ": " + tempStringID);
 
+                        // for weighted average
+                        //running5Distances.add(b.getDistance());
+                        //if(running5Distances.size() > 5)
+                        //    running5Distances.remove(0);
+                        //double tempTotal = 0d;
+                        //double divider = 0d;
+                        //double calDistance;
+                        //for(int i=1; i<=running5Distances.size(); i++)
+                        //{
+                        //    tempTotal += running5Distances.get(i-1) * i;
+                        //    divider += i;
+                        //}
+                        //calDistance = tempTotal/divider;
+                        // for weighted average
+
+
+
                         // get distances and print them out
                         currentDistanceList.add(b.getDistance());
-                        String bDistance = String.format("%.2f", b.getDistance());
+
+                        // temp comment
+                        //String bDistance = String.format("%.2f", b.getDistance());
+                        String bDistance = String.format("%.2f", calDistance);
+
                         String disString = "Beacon " + beaconIndex + ": " + bDistance +" meters";
                         beaconDistances.setText(beaconDistances.getText() + disString + "\n");
+                        beaconDistances.setText(beaconDistances.getText() + "current rssi: " + b.getRssi());
+
 
                         // for calibration
                         //currentRssi = b.getRssi();
@@ -148,9 +174,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         // for calibration
 
                         beaconIndex+=1;
-
                     }
-
                     // check if there is any update on beacon ID list
                     if(!currentIDList.equals(prevIDList))
                     {
@@ -161,14 +185,13 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                             beaconIDText.setText(beaconIDText.getText() + idString + "\n");
                         }
                     }
-
                 }
                 else
                 {
                     currentIDList.clear();
                     beaconIDText.setText("");
+                    beaconDistances.setText("");
                 }
-
             }
         });
     }
