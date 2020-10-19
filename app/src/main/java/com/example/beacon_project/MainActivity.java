@@ -75,7 +75,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
         // set average distance measurement period
         beaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
-        RunningAverageRssiFilter.setSampleExpirationMilliseconds(5000L);
+        RunningAverageRssiFilter.setSampleExpirationMilliseconds(4000L);
 
         // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
@@ -130,11 +130,12 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                     int beaconIndex = 1;
                     for(Beacon b: beacons)
                     {
+                        b.setHardwareEqualityEnforced(true);
                         // get IDs and put them on a list
                         String tempStringID = b.getId1().toString();
                         currentIDList.add("Beacon " + beaconIndex + ": " + tempStringID);
 
-                        // for weighted average
+                        // for weighted average, 1 beacon currently
                         //running5Distances.add(b.getDistance());
                         //if(running5Distances.size() > 5)
                         //    running5Distances.remove(0);
@@ -150,18 +151,17 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         // for weighted average
 
 
-
                         // get distances and print them out
-                        currentDistanceList.add(b.getDistance());
-
-                        // temp comment
+                        //currentDistanceList.add(b.getDistance());
                         //String bDistance = String.format("%.2f", b.getDistance());
-                        String bDistance = String.format("%.2f", calDistance);
+                        //String disString = "Beacon " + beaconIndex + ": " + bDistance +" meters";
+                        //beaconDistances.setText(beaconDistances.getText() + disString + "\n");
+                        //beaconDistances.setText(beaconDistances.getText() + "current rssi: " + b.getRssi());
 
-                        String disString = "Beacon " + beaconIndex + ": " + bDistance +" meters";
-                        beaconDistances.setText(beaconDistances.getText() + disString + "\n");
-                        beaconDistances.setText(beaconDistances.getText() + "current rssi: " + b.getRssi());
 
+                        // get bluetooth name of the beacons, put to beacon distance for now
+                        String blueName = b.getBluetoothName();
+                        beaconDistances.setText(beaconDistances.getText() + blueName + "\n");
 
                         // for calibration
                         //currentRssi = b.getRssi();
@@ -222,3 +222,12 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         catch(RemoteException e) {Log.d("beaconTag", "error on stop monitoring"); }
     }
 }
+
+
+/*
+FOR SCAN PERIODS
+        beaconManager.setForegroundScanPeriod(5000l);
+        beaconManager.setBackgroundScanPeriod(5000l);
+        beaconManager.setForegroundBetweenScanPeriod(1100l);
+        beaconManager.setBackgroundBetweenScanPeriod(1100l);
+ */
