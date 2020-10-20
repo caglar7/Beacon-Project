@@ -34,9 +34,11 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private TextView beaconIDText;
     private TextView beaconDistances;
     private Boolean doMonitoring = false;
+    ArrayList<Integer> detectedBeacons = new ArrayList<Integer>();
     ArrayList<String> currentIDList = new ArrayList<String>();
     ArrayList<Double> currentDistanceList = new ArrayList<Double>();
     ArrayList<Double> running5Distances = new ArrayList<Double>();
+    Map<Integer, String> mapIndexDistance = new HashMap<Integer, String>();
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -128,6 +130,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
                     // get the current list of beacon IDs
                     int beaconIndex = 1;
+                    detectedBeacons.clear();
                     for(Beacon b: beacons)
                     {
                         b.setHardwareEqualityEnforced(true);
@@ -150,18 +153,23 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         //calDistance = tempTotal/divider;
                         // for weighted average
 
+                        // get distances and print them out, for 1 beacon now
+                        currentDistanceList.add(b.getDistance());
+                        String bDistance = String.format("%.2f", b.getDistance());
 
-                        // get distances and print them out
-                        //currentDistanceList.add(b.getDistance());
-                        //String bDistance = String.format("%.2f", b.getDistance());
-                        //String disString = "Beacon " + beaconIndex + ": " + bDistance +" meters";
+                        // get the beacon index from its bluetooth name
+                        // parse the last item to int to have the key value of beacon
+                        String blueName = b.getBluetoothName();
+                        char lastchar = blueName.charAt(blueName.length()-1);
+                        int beaconint = lastchar - '0';
+                        String disString = bDistance + " meters";
+                        mapIndexDistance.put(beaconint, disString);
+                        detectedBeacons.add(beaconint);
+
+                        //String disString = beaconint + ": " + bDistance +" meters";
                         //beaconDistances.setText(beaconDistances.getText() + disString + "\n");
                         //beaconDistances.setText(beaconDistances.getText() + "current rssi: " + b.getRssi());
 
-
-                        // get bluetooth name of the beacons, put to beacon distance for now
-                        String blueName = b.getBluetoothName();
-                        beaconDistances.setText(beaconDistances.getText() + blueName + "\n");
 
                         // for calibration
                         //currentRssi = b.getRssi();
@@ -185,6 +193,21 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                             beaconIDText.setText(beaconIDText.getText() + idString + "\n");
                         }
                     }
+
+                    // print the beacons and distances
+                    for(int i=1; i<=beacons.size(); i++)
+                {
+                    if(detectedBeacons.contains(i))
+                    {
+                        String m = mapIndexDistance.get(i);
+                        beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + m + "\n");
+                    }
+                    else
+                    {
+                        String s = "No Signal";
+                        beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + s + "\n");
+                    }
+                }
                 }
                 else
                 {
@@ -220,6 +243,21 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
             beaconManager.stopRangingBeaconsInRegion(new Region("myRegion", null, null, null));
         }
         catch(RemoteException e) {Log.d("beaconTag", "error on stop monitoring"); }
+    }
+
+    private double measureDistance(double tx, double rssi)
+    {
+        if(rssi == 0d)
+            return 0;       // that might change if it causes any problems
+
+        double ratio = rssi / tx;
+        if(ratio < 1.0)
+            return Math.pow(ratio, 10);
+        else
+        {
+            double distance = (0.89976) * Math.pow(ratio, 7.7095) + 0.111;
+            return distance;
+        }
     }
 }
 
