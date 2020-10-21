@@ -36,9 +36,10 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private Boolean doMonitoring = false;
     ArrayList<Integer> detectedBeacons = new ArrayList<Integer>();
     ArrayList<String> currentIDList = new ArrayList<String>();
-    ArrayList<Double> currentDistanceList = new ArrayList<Double>();
-    ArrayList<Double> running5Distances = new ArrayList<Double>();
     Map<Integer, String> mapIndexDistance = new HashMap<Integer, String>();
+
+    ArrayList<Double> distanceList = new ArrayList<Double>();
+    int runningDistances = 8;
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -53,19 +54,22 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     float currentRssi;
     float rssiIndex = 1;
 
+    // delete after
+    int rssiValue = 0;
+    int txValue = 0;
+
     // this call here just before the onCreate method
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         requestPermissions(new String[] {Manifest.permission.ACCESS_COARSE_LOCATION}, 1234);
 
         // for beaconManager singleton
         beaconManager = BeaconManager.getInstanceForApplication(this);
 
-        // look for altbeacons for now
+        // beacon layouts to scan
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(ALTBEACON_LAYOUT));
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(EDDYSTONE_TLM_LAYOUT));
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(EDDYSTONE_UID_LAYOUT));
@@ -106,6 +110,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     }
 
     // this service is called on a period looking for beacons around
+    // later change this scan period for beacon data, default 1.1ms is not enough
     @Override
     public void onBeaconServiceConnect() {
         beaconManager.removeAllRangeNotifiers();
@@ -122,43 +127,29 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                     {
                         prevIDList.add(s);
                     }
-                    currentIDList.clear();
 
-                    // clear prev distance measurements
-                    currentDistanceList.clear();
+                    // clear prev lists and distance text
+                    detectedBeacons.clear();
+                    currentIDList.clear();
                     beaconDistances.setText("");
 
-                    // get the current list of beacon IDs
                     int beaconIndex = 1;
-                    detectedBeacons.clear();
                     for(Beacon b: beacons)
                     {
+                        // delete after, just some checking
+                        rssiValue = b.getRssi();
+                        txValue = b.getTxPower();
+
                         b.setHardwareEqualityEnforced(true);
                         // get IDs and put them on a list
                         String tempStringID = b.getId1().toString();
                         currentIDList.add("Beacon " + beaconIndex + ": " + tempStringID);
 
-                        // for weighted average, 1 beacon currently
-                        //running5Distances.add(b.getDistance());
-                        //if(running5Distances.size() > 5)
-                        //    running5Distances.remove(0);
-                        //double tempTotal = 0d;
-                        //double divider = 0d;
-                        //double calDistance;
-                        //for(int i=1; i<=running5Distances.size(); i++)
-                        //{
-                        //    tempTotal += running5Distances.get(i-1) * i;
-                        //    divider += i;
-                        //}
-                        //calDistance = tempTotal/divider;
-                        // for weighted average
-
                         // get distances and print them out, for 1 beacon now
-                        currentDistanceList.add(b.getDistance());
-                        String bDistance = String.format("%.2f", b.getDistance());
+                        double disCalculated = measureDistance(txValue, rssiValue);
+                        String bDistance = String.format("%.2f", disCalculated);
 
                         // get the beacon index from its bluetooth name
-                        // parse the last item to int to have the key value of beacon
                         String blueName = b.getBluetoothName();
                         char lastchar = blueName.charAt(blueName.length()-1);
                         int beaconint = lastchar - '0';
@@ -169,7 +160,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         //String disString = beaconint + ": " + bDistance +" meters";
                         //beaconDistances.setText(beaconDistances.getText() + disString + "\n");
                         //beaconDistances.setText(beaconDistances.getText() + "current rssi: " + b.getRssi());
-
 
                         // for calibration
                         //currentRssi = b.getRssi();
@@ -194,20 +184,22 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         }
                     }
 
-                    // print the beacons and distances
+                    // print the beacons and distances, hashmap format
                     for(int i=1; i<=beacons.size(); i++)
-                {
-                    if(detectedBeacons.contains(i))
                     {
-                        String m = mapIndexDistance.get(i);
-                        beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + m + "\n");
+                        if(detectedBeacons.contains(i))
+                        {
+                            String m = mapIndexDistance.get(i);
+                            beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + m + "\n");
+                            beaconDistances.setText(beaconDistances.getText() + "rssi: " + rssiValue + "\n");
+                            beaconDistances.setText(beaconDistances.getText() + "tx  : " + txValue + "\n");
+                        }
+                        else
+                        {
+                            String s = "No Signal";
+                            beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + s + "\n");
+                        }
                     }
-                    else
-                    {
-                        String s = "No Signal";
-                        beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + s + "\n");
-                    }
-                }
                 }
                 else
                 {
@@ -247,17 +239,47 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
     private double measureDistance(double tx, double rssi)
     {
+        double distance;
         if(rssi == 0d)
-            return 0;       // that might change if it causes any problems
+            distance = 0;       // that might change if it causes any problems
 
         double ratio = rssi / tx;
         if(ratio < 1.0)
-            return Math.pow(ratio, 10);
+            distance = Math.pow(ratio, 10);
         else
         {
-            double distance = (0.89976) * Math.pow(ratio, 7.7095) + 0.111;
-            return distance;
+            distance = (0.89976) * Math.pow(ratio, 7.7095) + 0.111;
         }
+
+        // apply running average
+        if(distanceList.size() == runningDistances)
+        {
+            distanceList.remove(0);
+            distanceList.add(distance);
+        }
+        else
+        {
+            distanceList.add(distance);
+        }
+        // calculate running average
+        //double sum = 0;
+        //double divider = (double) distanceList.size();
+        //for(double d: distanceList)
+        //    sum+=d;
+
+        // weighted average test
+        double sum = 0;
+        double divider = 0;
+        int index = 1;
+        for(double d: distanceList)
+        {
+            divider+=index;
+            sum += (d*index);
+            index+=1;
+        }
+        distance = sum/divider;
+
+        return distance;
     }
 }
 
