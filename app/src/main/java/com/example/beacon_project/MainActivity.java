@@ -76,12 +76,21 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(EDDYSTONE_URL_LAYOUT));
         beaconManager.getBeaconParsers().add(new BeaconParser().setBeaconLayout(IBEACON_LAYOUT));
 
+        // set scan period for beaconServiceConnect
+        try {
+            beaconManager.setForegroundScanPeriod(500l);
+            beaconManager.setForegroundBetweenScanPeriod(0l);
+        }catch(Exception e)
+        {
+            e.printStackTrace();
+        }
+
         // bind beaconManager to this activity
         beaconManager.bind(this);
 
         // set average distance measurement period
         beaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
-        RunningAverageRssiFilter.setSampleExpirationMilliseconds(4000L);
+        RunningAverageRssiFilter.setSampleExpirationMilliseconds(8000L);
 
         // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
@@ -113,6 +122,13 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     // later change this scan period for beacon data, default 1.1ms is not enough
     @Override
     public void onBeaconServiceConnect() {
+        try {
+            beaconManager.updateScanPeriods();
+        }catch(Exception e)
+        {
+            e.printStackTrace();
+        }
+
         beaconManager.removeAllRangeNotifiers();
         beaconManager.addRangeNotifier(new RangeNotifier() {
             @Override
@@ -146,7 +162,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         currentIDList.add("Beacon " + beaconIndex + ": " + tempStringID);
 
                         // get distances and print them out, for 1 beacon now
-                        double disCalculated = measureDistance(txValue, rssiValue);
+                        double disCalculated = b.getDistance();
                         String bDistance = String.format("%.2f", disCalculated);
 
                         // get the beacon index from its bluetooth name
