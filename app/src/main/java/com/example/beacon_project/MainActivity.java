@@ -4,6 +4,7 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
+import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.RemoteException;
@@ -18,9 +19,9 @@ import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.BeaconParser;
 import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
-import org.altbeacon.beacon.service.ArmaRssiFilter;
 import org.altbeacon.beacon.service.RunningAverageRssiFilter;
 
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -32,14 +33,11 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private Button startButton;
     private Button stopButton;
     private TextView beaconIDText;
-    private TextView beaconDistances;
+    private TextView beaconDistancesText;
     private Boolean doMonitoring = false;
-    ArrayList<Integer> detectedBeacons = new ArrayList<Integer>();
-    ArrayList<String> currentIDList = new ArrayList<String>();
-    Map<Integer, String> mapIndexDistance = new HashMap<Integer, String>();
-
-    ArrayList<Double> distanceList = new ArrayList<Double>();
-    int runningDistances = 8;
+    ArrayList<Beacon> currentBeaconList = new ArrayList<Beacon>();
+    ArrayList<Beacon> allDetectedBeaconsList = new ArrayList<Beacon>();
+    ArrayList<String> currentBeaconDistances = new ArrayList<String>();
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -53,10 +51,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     float totalRssi = 0f;
     float currentRssi;
     float rssiIndex = 1;
-
-    // delete after
-    int rssiValue = 0;
-    int txValue = 0;
 
     // this call here just before the onCreate method
     @RequiresApi(api = Build.VERSION_CODES.M)
@@ -90,13 +84,13 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
         // set average distance measurement period
         beaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
-        RunningAverageRssiFilter.setSampleExpirationMilliseconds(8000L);
+        RunningAverageRssiFilter.setSampleExpirationMilliseconds(7000L);
 
         // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
         stopButton = (Button) findViewById(R.id.button_Stop);
         beaconIDText = (TextView) findViewById(R.id.textBeaconUUID);
-        beaconDistances = (TextView) findViewById(R.id.text_Distances);
+        beaconDistancesText = (TextView) findViewById(R.id.text_Distances);
         startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -135,47 +129,23 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
             public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
                 if(doMonitoring)
                 {
-                    Log.d("beaconTag", beacons.size() + " beacons");
-
-                    // get the prev list of beacon IDs
-                    ArrayList<String> prevIDList = new ArrayList<String>();
-                    for(String s: currentIDList)
+                    // get prev beaconlist and clear current
+                    ArrayList<Beacon> prevBeaconList = new ArrayList<Beacon>();
+                    for(Beacon prevB: currentBeaconList)
                     {
-                        prevIDList.add(s);
+                        prevBeaconList.add(prevB);
                     }
-
-                    // clear prev lists and distance text
-                    detectedBeacons.clear();
-                    currentIDList.clear();
-                    beaconDistances.setText("");
+                    currentBeaconList.clear();
+                    currentBeaconDistances.clear();
 
                     int beaconIndex = 1;
                     for(Beacon b: beacons)
                     {
-                        // delete after, just some checking
-                        rssiValue = b.getRssi();
-                        txValue = b.getTxPower();
-
                         b.setHardwareEqualityEnforced(true);
-                        // get IDs and put them on a list
-                        String tempStringID = b.getId1().toString();
-                        currentIDList.add("Beacon " + beaconIndex + ": " + tempStringID);
 
-                        // get distances and print them out, for 1 beacon now
-                        double disCalculated = b.getDistance();
-                        String bDistance = String.format("%.2f", disCalculated);
-
-                        // get the beacon index from its bluetooth name
-                        String blueName = b.getBluetoothName();
-                        char lastchar = blueName.charAt(blueName.length()-1);
-                        int beaconint = lastchar - '0';
-                        String disString = bDistance + " meters";
-                        mapIndexDistance.put(beaconint, disString);
-                        detectedBeacons.add(beaconint);
-
-                        //String disString = beaconint + ": " + bDistance +" meters";
-                        //beaconDistances.setText(beaconDistances.getText() + disString + "\n");
-                        //beaconDistances.setText(beaconDistances.getText() + "current rssi: " + b.getRssi());
+                        // put beacons on the list
+                        currentBeaconList.add(b);
+                        AddDetectedBeacon(b);
 
                         // for calibration
                         //currentRssi = b.getRssi();
@@ -189,39 +159,31 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
                         beaconIndex+=1;
                     }
-                    // check if there is any update on beacon ID list
-                    if(!currentIDList.equals(prevIDList))
+                    // check if there is any update on beacon ID text
+                    boolean prevCurrentEqual = equalCheck(prevBeaconList, currentBeaconList);
+                    if(prevCurrentEqual == false)
                     {
-                        // there is a change in beacon ID list, updating textView
                         beaconIDText.setText("");
-                        for(String idString: currentIDList)
+                        for(Beacon idB: allDetectedBeaconsList)
                         {
-                            beaconIDText.setText(beaconIDText.getText() + idString + "\n");
+                            if(currentBeaconList.contains(idB))
+                            {
+                                String id = idB.getId1().toString();
+                                int bIndex = getBeaconIndex(idB)+1;
+                                beaconIDText.setText(beaconIDText.getText() + "Beacon "+bIndex+": " + id + "\n");
+                            }
                         }
                     }
 
-                    // print the beacons and distances, hashmap format
-                    for(int i=1; i<=beacons.size(); i++)
-                    {
-                        if(detectedBeacons.contains(i))
-                        {
-                            String m = mapIndexDistance.get(i);
-                            beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + m + "\n");
-                            beaconDistances.setText(beaconDistances.getText() + "rssi: " + rssiValue + "\n");
-                            beaconDistances.setText(beaconDistances.getText() + "tx  : " + txValue + "\n");
-                        }
-                        else
-                        {
-                            String s = "No Signal";
-                            beaconDistances.setText(beaconDistances.getText() + "Beacon " + i + ": " + s + "\n");
-                        }
-                    }
+                    // print distances for each beacon detected
                 }
                 else
                 {
-                    currentIDList.clear();
+                    // clear id and distance text
                     beaconIDText.setText("");
-                    beaconDistances.setText("");
+                    beaconDistancesText.setText("");
+                    allDetectedBeaconsList.clear();
+                    currentBeaconList.clear();
                 }
             }
         });
@@ -245,6 +207,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private void stopMonitoring()
     {
         doMonitoring = false;
+        allDetectedBeaconsList.clear();
 
         Log.d("beaconTag", "monitoring stopped");
         try{
@@ -253,49 +216,37 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         catch(RemoteException e) {Log.d("beaconTag", "error on stop monitoring"); }
     }
 
-    private double measureDistance(double tx, double rssi)
+    private void AddDetectedBeacon(Beacon dBeacon)
     {
-        double distance;
-        if(rssi == 0d)
-            distance = 0;       // that might change if it causes any problems
+        if(!allDetectedBeaconsList.contains(dBeacon))
+        {
+            allDetectedBeaconsList.add(dBeacon);
+        }
+    }
 
-        double ratio = rssi / tx;
-        if(ratio < 1.0)
-            distance = Math.pow(ratio, 10);
+    private int getBeaconIndex(Beacon b)
+    {
+        return allDetectedBeaconsList.indexOf(b);
+    }
+
+    private boolean equalCheck(ArrayList prev, ArrayList current)
+    {
+        if(prev.size() != current.size())
+            return false;
+
+        int contains = 0;
+        for(int i=0; i<current.size(); i++)
+        {
+            if(prev.contains(current.get(i)))
+            {
+                contains+=1;
+            }
+        }
+
+        if(contains == current.size())
+            return true;
         else
-        {
-            distance = (0.89976) * Math.pow(ratio, 7.7095) + 0.111;
-        }
-
-        // apply running average
-        if(distanceList.size() == runningDistances)
-        {
-            distanceList.remove(0);
-            distanceList.add(distance);
-        }
-        else
-        {
-            distanceList.add(distance);
-        }
-        // calculate running average
-        //double sum = 0;
-        //double divider = (double) distanceList.size();
-        //for(double d: distanceList)
-        //    sum+=d;
-
-        // weighted average test
-        double sum = 0;
-        double divider = 0;
-        int index = 1;
-        for(double d: distanceList)
-        {
-            divider+=index;
-            sum += (d*index);
-            index+=1;
-        }
-        distance = sum/divider;
-
-        return distance;
+            return false;
     }
 }
 
