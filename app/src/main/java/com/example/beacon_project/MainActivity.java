@@ -4,7 +4,6 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
-import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.RemoteException;
@@ -21,7 +20,6 @@ import org.altbeacon.beacon.RangeNotifier;
 import org.altbeacon.beacon.Region;
 import org.altbeacon.beacon.service.RunningAverageRssiFilter;
 
-import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -37,7 +35,13 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private Boolean doMonitoring = false;
     ArrayList<Beacon> currentBeaconList = new ArrayList<Beacon>();
     ArrayList<Beacon> allDetectedBeaconsList = new ArrayList<Beacon>();
-    ArrayList<String> currentBeaconDistances = new ArrayList<String>();
+
+    // for second running average, 2d arraylist for distances
+    ArrayList<ArrayList<Double>> allBeaconDistances = new ArrayList<ArrayList<Double>>();
+    ArrayList<Double> allDistanceDividers = new ArrayList<Double>();
+    int secRunningAvg = 5;
+
+
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -84,7 +88,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
         // set average distance measurement period
         beaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
-        RunningAverageRssiFilter.setSampleExpirationMilliseconds(7000L);
+        RunningAverageRssiFilter.setSampleExpirationMilliseconds(6000L);
 
         // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
@@ -136,7 +140,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         prevBeaconList.add(prevB);
                     }
                     currentBeaconList.clear();
-                    currentBeaconDistances.clear();
 
                     int beaconIndex = 1;
                     for(Beacon b: beacons)
@@ -147,7 +150,8 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                         currentBeaconList.add(b);
                         AddDetectedBeacon(b);
 
-                        // for calibration
+
+                        // for calibratio
                         //currentRssi = b.getRssi();
                         //totalRssi += currentRssi;
                         //float averageRssi = totalRssi / rssiIndex;
@@ -176,6 +180,24 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
                     }
 
                     // print distances for each beacon detected
+                    beaconDistancesText.setText("");
+                    for(Beacon disB: allDetectedBeaconsList)
+                    {
+                        int bIndex = getBeaconIndex(disB)+1;
+                        if(currentBeaconList.contains(disB))
+                        {
+                            int cIndex = currentBeaconList.indexOf(disB);
+                            String dis = String.format("%.1f", currentBeaconList.get(cIndex).getDistance()) + " meters";
+                            if(dis == "0.0 meters")
+                                dis = "0.1 meters";
+                            beaconDistancesText.setText(beaconDistancesText.getText() + "Beacon "+bIndex+": "+dis+"\n");
+                        }
+                        else
+                        {
+                            String m = "NO SIGNAL";
+                            beaconDistancesText.setText(beaconDistancesText.getText() + "Beacon "+bIndex+ ": " +m + "\n");
+                        }
+                    }
                 }
                 else
                 {
@@ -207,7 +229,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private void stopMonitoring()
     {
         doMonitoring = false;
-        allDetectedBeaconsList.clear();
 
         Log.d("beaconTag", "monitoring stopped");
         try{
@@ -221,6 +242,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         if(!allDetectedBeaconsList.contains(dBeacon))
         {
             allDetectedBeaconsList.add(dBeacon);
+            allBeaconDistances.add(new ArrayList<Double>());
         }
     }
 
@@ -248,13 +270,29 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         else
             return false;
     }
+
+    private double secondRunningDistance(Beacon b, int index)
+    {
+        int size = allBeaconDistances.get(index).size();
+        if(size == secRunningAvg)
+        {
+            // remove first and add another double
+            allBeaconDistances.get(index).remove(0);
+            allBeaconDistances.get(index).add(b.getDistance());
+        }
+        else if(size < secRunningAvg)
+        {
+            allBeaconDistances.get(index).add(b.getDistance());
+        }
+
+        double sum = 0d;
+        double divider = 0d;
+        for(double d: allBeaconDistances.get(index))
+        {
+            sum+=d;
+            divider+=1;
+        }
+
+        return sum/divider;
+    }
 }
-
-
-/*
-FOR SCAN PERIODS
-        beaconManager.setForegroundScanPeriod(5000l);
-        beaconManager.setBackgroundScanPeriod(5000l);
-        beaconManager.setForegroundBetweenScanPeriod(1100l);
-        beaconManager.setBackgroundBetweenScanPeriod(1100l);
- */
