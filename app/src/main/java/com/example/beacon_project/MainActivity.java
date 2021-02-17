@@ -26,6 +26,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity implements BeaconConsumer{
+    private static final String TAG = "MainActivity";
+
     private BeaconManager beaconManager;
     private Region beaconRegion;
     private Button startButton;
@@ -36,12 +38,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     ArrayList<Beacon> currentBeaconList = new ArrayList<Beacon>();
     ArrayList<Beacon> allDetectedBeaconsList = new ArrayList<Beacon>();
 
-    // for second running average, 2d arraylist for distances
-    ArrayList<ArrayList<Double>> allBeaconDistances = new ArrayList<ArrayList<Double>>();
-    ArrayList<Double> allDistanceDividers = new ArrayList<Double>();
-    int secRunningAvg = 5;
-
-
 
     // BEACON LAYOUTS
     private static final String ALTBEACON_LAYOUT = "m:2-3=beac,i:4-19,i:20-21,i:22-23,p:24-24,d:25-25";
@@ -50,11 +46,20 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
     private static final String EDDYSTONE_URL_LAYOUT = "s:0-1=feaa,m:2-2=10,p:3-3:-41,i:4-20v";
     private static final String IBEACON_LAYOUT = "m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24";
 
-
     // for calibration currently
     float totalRssi = 0f;
     float currentRssi;
     float rssiIndex = 1;
+
+    // THIS VARIABLE BLOCK IS FOR MOVEMENT DRAWING UPDATE
+    // FOR DISTANCE CALCULATION, values from power regression prediction
+    private double coefficientA = 0.89d;
+    private double coefficientB = 7.62d;
+    private double coefficientC = 0.24d;
+    // for running average code
+    private int measureAmount = 10;             // increments by 10 for now
+    private ArrayList<Double> distanceList = new ArrayList<Double>();
+
 
     // this call here just before the onCreate method
     @RequiresApi(api = Build.VERSION_CODES.M)
@@ -88,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
 
         // set average distance measurement period
         beaconManager.setRssiFilterImplClass(RunningAverageRssiFilter.class);
-        RunningAverageRssiFilter.setSampleExpirationMilliseconds(6000L);
+        RunningAverageRssiFilter.setSampleExpirationMilliseconds(5000L);
 
         // get element from xml
         startButton = (Button) findViewById(R.id.button_Start);
@@ -133,71 +138,41 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
             public void didRangeBeaconsInRegion(Collection<Beacon> beacons, Region region) {
                 if(doMonitoring)
                 {
-                    // get prev beaconlist and clear current
-                    ArrayList<Beacon> prevBeaconList = new ArrayList<Beacon>();
-                    for(Beacon prevB: currentBeaconList)
-                    {
-                        prevBeaconList.add(prevB);
-                    }
-                    currentBeaconList.clear();
 
                     int beaconIndex = 1;
                     for(Beacon b: beacons)
                     {
                         b.setHardwareEqualityEnforced(true);
 
-                        // put beacons on the list
-                        currentBeaconList.add(b);
-                        AddDetectedBeacon(b);
+                        double txValue = b.getTxPower();
+                        double rssiValue = b.getRssi();
+                        double distanceValue = getDistanceForDevice(txValue, rssiValue);
+                        String distanceString = String.format("%.1f", distanceValue);
 
+                        // print beacon ID and distanceValue
+                        int count = 1;
+                        beaconIDText.setText("");
+                        for(double d: distanceList)
+                        {
+                            String dString = String.format("%.1f", d);
+                            beaconIDText.setText(beaconIDText.getText() + "value "+count + ": " + dString + "\n");
+                            count++;
+                        }
+                        beaconDistancesText.setText("Avg Distance: " + distanceString);
 
                         // for calibratio
                         //currentRssi = b.getRssi();
                         //totalRssi += currentRssi;
                         //float averageRssi = totalRssi / rssiIndex;
-                        //beaconDistances.setText("total RSSI  : " + totalRssi + "\n");
-                        //beaconDistances.setText(beaconDistances.getText() + "index       : " + rssiIndex + "\n");
-                        //beaconDistances.setText(beaconDistances.getText() + "average RSSI: " + averageRssi + " dbm");
+                        //beaconDistancesText.setText("total RSSI  : " + totalRssi + "\n");
+                        //beaconDistancesText.setText(beaconDistancesText.getText() + "index       : " + rssiIndex + "\n");
+                        //beaconDistancesText.setText(beaconDistancesText.getText() + "average RSSI: " + averageRssi + " dbm");
                         //rssiIndex+=1;
                         // for calibration
 
                         beaconIndex+=1;
                     }
-                    // check if there is any update on beacon ID text
-                    boolean prevCurrentEqual = equalCheck(prevBeaconList, currentBeaconList);
-                    if(prevCurrentEqual == false)
-                    {
-                        beaconIDText.setText("");
-                        for(Beacon idB: allDetectedBeaconsList)
-                        {
-                            if(currentBeaconList.contains(idB))
-                            {
-                                String id = idB.getId1().toString();
-                                int bIndex = getBeaconIndex(idB)+1;
-                                beaconIDText.setText(beaconIDText.getText() + "Beacon "+bIndex+": " + id + "\n");
-                            }
-                        }
-                    }
 
-                    // print distances for each beacon detected
-                    beaconDistancesText.setText("");
-                    for(Beacon disB: allDetectedBeaconsList)
-                    {
-                        int bIndex = getBeaconIndex(disB)+1;
-                        if(currentBeaconList.contains(disB))
-                        {
-                            int cIndex = currentBeaconList.indexOf(disB);
-                            String dis = String.format("%.1f", currentBeaconList.get(cIndex).getDistance()) + " meters";
-                            if(dis == "0.0 meters")
-                                dis = "0.1 meters";
-                            beaconDistancesText.setText(beaconDistancesText.getText() + "Beacon "+bIndex+": "+dis+"\n");
-                        }
-                        else
-                        {
-                            String m = "NO SIGNAL";
-                            beaconDistancesText.setText(beaconDistancesText.getText() + "Beacon "+bIndex+ ": " +m + "\n");
-                        }
-                    }
                 }
                 else
                 {
@@ -242,7 +217,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
         if(!allDetectedBeaconsList.contains(dBeacon))
         {
             allDetectedBeaconsList.add(dBeacon);
-            allBeaconDistances.add(new ArrayList<Double>());
         }
     }
 
@@ -271,28 +245,81 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer{
             return false;
     }
 
-    private double secondRunningDistance(Beacon b, int index)
+    private double getDistanceForDevice(double tx, double rssi)
     {
-        int size = allBeaconDistances.get(index).size();
-        if(size == secRunningAvg)
+        // not first out last in, just weird values are out
+        double ratio = rssi/tx;
+        double dis = coefficientA*(Math.pow(ratio, coefficientB)) + coefficientC;
+
+        // add distance to the list
+        distanceList.add(dis);
+
+        // running average code with 10% top and bottom are out
+        int throwAmount = measureAmount/10;
+        if(distanceList.size() >= measureAmount)
         {
-            // remove first and add another double
-            allBeaconDistances.get(index).remove(0);
-            allBeaconDistances.get(index).add(b.getDistance());
-        }
-        else if(size < secRunningAvg)
-        {
-            allBeaconDistances.get(index).add(b.getDistance());
+            for(int i=0; i<throwAmount; i++)
+            {
+                // initialize and assign first element
+                double topValue, bottomValue;
+                int topIndex = 0, bottomIndex = 0;
+                topValue = bottomValue = distanceList.get(0);
+
+                // find top value and remove it
+                for(double d: distanceList)
+                {
+                    if(d >= topValue)
+                        topValue = d;
+                }
+                topIndex = distanceList.indexOf(topValue);
+                distanceList.remove(topIndex);
+
+                // find bottom value and remove it
+                for(double d: distanceList)
+                {
+                    if(d<=bottomValue)
+                        bottomValue = d;
+                }
+                bottomIndex = distanceList.indexOf(bottomValue);
+                distanceList.remove(bottomIndex);
+            }
         }
 
-        double sum = 0d;
-        double divider = 0d;
-        for(double d: allBeaconDistances.get(index))
+        double total = 0;
+        double listSize = distanceList.size();
+        for(double d: distanceList)
         {
-            sum+=d;
-            divider+=1;
+            total+=d;
         }
+        double runAverage = total/listSize;
 
-        return sum/divider;
+        return runAverage;
     }
 }
+
+
+
+//private double secondRunningDistance(Beacon b, int index)
+//{
+//    int size = allBeaconDistances.get(index).size();
+//    if(size == secRunningAvg)
+//    {
+//        // remove first and add another double
+//        allBeaconDistances.get(index).remove(0);
+//        allBeaconDistances.get(index).add(b.getDistance());
+//    }
+//    else if(size < secRunningAvg)
+//    {
+//        allBeaconDistances.get(index).add(b.getDistance());
+//    }
+//
+//    double sum = 0d;
+//    double divider = 0d;
+//    for(double d: allBeaconDistances.get(index))
+//    {
+//        sum+=d;
+//        divider+=1;
+//    }
+//
+//    return sum/divider;
+//}
